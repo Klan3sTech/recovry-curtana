@@ -68,25 +68,36 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work/device/xiaomi/curtana
         
-        # Создаем конфигурационный файл twrp_curtana на базе существующего fox_miatoll
+        # 1. Очищаем vendorsetup.sh, который ломает lunch
+        echo "#!/bin/bash" > vendorsetup.sh
+        echo "add_lunch_combo twrp_curtana-eng" >> vendorsetup.sh
+        chmod 755 vendorsetup.sh
+        
+        # 2. Создаем twrp_curtana.mk из существующего fox-конфига
         if [ -f fox_miatoll.mk ]; then
           cp -f fox_miatoll.mk twrp_curtana.mk
         elif [ -f fox_curtana.mk ]; then
           cp -f fox_curtana.mk twrp_curtana.mk
         fi
         
-        # Переименовываем таргет продукта для совместимости со стандартным lunch
+        # 3. Переименовываем таргет продукта внутри файла
         sed -i 's/fox_miatoll/twrp_curtana/g' twrp_curtana.mk 2>/dev/null || true
         sed -i 's/fox_curtana/twrp_curtana/g' twrp_curtana.mk 2>/dev/null || true
+        sed -i 's/PRODUCT_NAME := .*/PRODUCT_NAME := twrp_curtana/g' twrp_curtana.mk 2>/dev/null || true
+        sed -i 's/PRODUCT_DEVICE := .*/PRODUCT_DEVICE := curtana/g' twrp_curtana.mk 2>/dev/null || true
         
-        # Регистрируем продукт в AndroidProducts.mk
+        # 4. Прописываем таргет в AndroidProducts.mk
         cat << 'EOF' > AndroidProducts.mk
         PRODUCT_MAKEFILES := \
             $(LOCAL_DIR)/twrp_curtana.mk
+
+        COMMON_LUNCH_CHOICES := \
+            twrp_curtana-eng
         EOF
 
-        # Отключаем встроенные флаги компиляции специфичных бинарников OrangeFox
-        sed -i 's/OF_/# OF_/g' BoardConfig.mk 2>/dev/null || true
+        # 5. Отключаем специфичные для OrangeFox модули
+        sed -i 's/^OF_/# OF_/g' BoardConfig.mk 2>/dev/null || true
+        sed -i 's/^TW_OFOX_/# TW_OFOX_/g' BoardConfig.mk 2>/dev/null || true
 
     - name: Build Recovery Image
       run: |
