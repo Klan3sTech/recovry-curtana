@@ -1,0 +1,104 @@
+name: Build AERA Recovery for Miatoll
+
+on:
+  workflow_dispatch:
+    inputs:
+      MANIFEST_BRANCH:
+        description: 'TWRP Minimal Manifest Branch'
+        required: true
+        default: 'twrp-12.1'
+      AERA_BRANCH:
+        description: 'AERA Recovery Branch'
+        required: true
+        default: 'aera-12.1'
+
+jobs:
+  build:
+    name: Compile Recovery Image
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Maximize Build Space
+      uses: easimon/maximize-build-space@master
+      with:
+        root-reserve-mb: 4096
+        temp-reserve-mb: 2048
+        remove-dotnet: 'true'
+        remove-android: 'true'
+        remove-haskell: 'true'
+        remove-codeql: 'true'
+        remove-docker-images: 'true'
+
+    - name: Set up Build Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git-core gnupg flex bison build-essential zip \
+          curl zlib1g-dev libc6-dev-i386 libncurses5 libssl-dev libxml2-utils \
+          xsltproc unzip python3 rsync bc ccache
+
+    - name: Install Repo Tool
+      run: |
+        mkdir -p ~/bin
+        curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+        chmod a+x ~/bin/repo
+        sudo ln -sf ~/bin/repo /usr/bin/repo
+
+    - name: Initialize TWRP Manifest
+      run: |
+        mkdir -p ${{ github.workspace }}/work
+        cd ${{ github.workspace }}/work
+        git config --global user.name "GitHub Action"
+        git config --global user.email "action@github.com"
+        repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b ${{ github.event.inputs.MANIFEST_BRANCH }} --depth=1
+        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
+
+    - name: Clone AERA Source and Device Tree
+      run: |
+        cd ${{ github.workspace }}/work
+        
+        # 1. Заменяем стандартный TWRP на AERA Recovery
+        rm -rf bootable/recovery
+        git clone https://github.com/AERA-Recovery/android_bootable_recovery.git bootable/recovery -b ${{ github.event.inputs.AERA_BRANCH }} --depth=1
+
+        # 2. Клонируем дерево устройства OrangeFox для miatoll
+        mkdir -p device/xiaomi/curtana
+        git clone https://github.com/OrangeFoxRecovery/device_xiaomi_miatoll.git device/xiaomi/curtana --depth=1
+
+    - name: Adapt Device Tree for AERA
+      run: |
+        cd ${{ github.workspace }}/work/device/xiaomi/curtana
+        
+        # Создаем конфигурационный файл twrp_curtana на базе существующего fox_miatoll
+        if [ -f fox_miatoll.mk ]; then
+          cp -f fox_miatoll.mk twrp_curtana.mk
+        elif [ -f fox_curtana.mk ]; then
+          cp -f fox_curtana.mk twrp_curtana.mk
+        fi
+        
+        # Переименовываем таргет продукта для совместимости со стандартным lunch
+        sed -i 's/fox_miatoll/twrp_curtana/g' twrp_curtana.mk 2>/dev/null || true
+        sed -i 's/fox_curtana/twrp_curtana/g' twrp_curtana.mk 2>/dev/null || true
+        
+        # Регистрируем продукт в AndroidProducts.mk
+        cat << 'EOF' > AndroidProducts.mk
+        PRODUCT_MAKEFILES := \
+            $(LOCAL_DIR)/twrp_curtana.mk
+        EOF
+
+        # Отключаем встроенные флаги компиляции специфичных бинарников OrangeFox
+        sed -i 's/OF_/# OF_/g' BoardConfig.mk 2>/dev/null || true
+
+    - name: Build Recovery Image
+      run: |
+        cd ${{ github.workspace }}/work
+        export ALLOW_MISSING_DEPENDENCIES=true
+        source build/envsetup.sh
+        lunch twrp_curtana-eng
+        mka recoveryimage -j$(nproc --all)
+
+    - name: Verify and Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: AERA-Miatoll-Recovery
+        path: ${{ github.workspace }}/work/out/target/product/curtana/recovery.img
+        if-no-files-found: error
