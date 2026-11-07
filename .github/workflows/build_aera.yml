@@ -7,10 +7,6 @@ on:
         description: 'TWRP Minimal Manifest Branch'
         required: true
         default: 'twrp-12.1'
-      AERA_BRANCH:
-        description: 'AERA Recovery Branch'
-        required: true
-        default: 'aera-12.1'
 
 jobs:
   build:
@@ -56,37 +52,35 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. Заменяем стандартный TWRP на AERA Recovery (клонируем ветку по умолчанию)
+        # Заменяем стандартный TWRP на AERA Recovery
         rm -rf bootable/recovery
         git clone https://github.com/AERA-Recovery/android_bootable_recovery.git bootable/recovery --depth=1
 
-        # 2. Клонируем дерево устройства OrangeFox для miatoll
+        # Клонируем дерево устройства OrangeFox для miatoll
         mkdir -p device/xiaomi/curtana
         git clone https://github.com/OrangeFoxRecovery/device_xiaomi_miatoll.git device/xiaomi/curtana --depth=1
-        
+
     - name: Adapt Device Tree for AERA
       run: |
         cd ${{ github.workspace }}/work/device/xiaomi/curtana
         
-        # 1. Очищаем vendorsetup.sh, который ломает lunch
+        # Полностью очищаем vendorsetup.sh, чтобы он не вызывал устаревший add_lunch_combo
         echo "#!/bin/bash" > vendorsetup.sh
-        echo "add_lunch_combo twrp_curtana-eng" >> vendorsetup.sh
         chmod 755 vendorsetup.sh
-        
-        # 2. Создаем twrp_curtana.mk из существующего fox-конфига
-        if [ -f fox_miatoll.mk ]; then
-          cp -f fox_miatoll.mk twrp_curtana.mk
-        elif [ -f fox_curtana.mk ]; then
-          cp -f fox_curtana.mk twrp_curtana.mk
+
+        # Находим исходный конфиг (omni_miatoll.mk или fox_miatoll.mk) и создаем twrp_curtana.mk
+        SRC_MK=$(ls omni_*.mk fox_*.mk 2>/dev/null | head -n 1)
+        if [ -n "$SRC_MK" ]; then
+          cp -f "$SRC_MK" twrp_curtana.mk
+        else
+          echo "Error: source mk file not found!" && exit 1
         fi
-        
-        # 3. Переименовываем таргет продукта внутри файла
-        sed -i 's/fox_miatoll/twrp_curtana/g' twrp_curtana.mk 2>/dev/null || true
-        sed -i 's/fox_curtana/twrp_curtana/g' twrp_curtana.mk 2>/dev/null || true
-        sed -i 's/PRODUCT_NAME := .*/PRODUCT_NAME := twrp_curtana/g' twrp_curtana.mk 2>/dev/null || true
-        sed -i 's/PRODUCT_DEVICE := .*/PRODUCT_DEVICE := curtana/g' twrp_curtana.mk 2>/dev/null || true
-        
-        # 4. Прописываем таргет в AndroidProducts.mk
+
+        # Корректируем имя продукта внутри twrp_curtana.mk
+        sed -i 's/PRODUCT_NAME := .*/PRODUCT_NAME := twrp_curtana/g' twrp_curtana.mk
+        sed -i 's/PRODUCT_DEVICE := .*/PRODUCT_DEVICE := curtana/g' twrp_curtana.mk
+
+        # Регистрируем продукт в стандарте Android 12.1 через COMMON_LUNCH_CHOICES
         cat << 'EOF' > AndroidProducts.mk
         PRODUCT_MAKEFILES := \
             $(LOCAL_DIR)/twrp_curtana.mk
@@ -95,7 +89,7 @@ jobs:
             twrp_curtana-eng
         EOF
 
-        # 5. Отключаем специфичные для OrangeFox модули
+        # Отключаем встроенные проверки и переменные OrangeFox
         sed -i 's/^OF_/# OF_/g' BoardConfig.mk 2>/dev/null || true
         sed -i 's/^TW_OFOX_/# TW_OFOX_/g' BoardConfig.mk 2>/dev/null || true
 
