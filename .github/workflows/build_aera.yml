@@ -60,23 +60,28 @@ jobs:
         mkdir -p device/xiaomi/curtana
         git clone https://github.com/OrangeFoxRecovery/device_xiaomi_miatoll.git device/xiaomi/curtana --depth=1
 
-    - name: Adapt Device Tree for AERA
+    - name: Patch AERA and Adapt Device Tree
       run: |
-        cd ${{ github.workspace }}/work/device/xiaomi/curtana
+        cd ${{ github.workspace }}/work
         
-        # 1. Очищаем vendorsetup.sh
+        # 1. Патчим AERA для совместимости с Soong Android 12.1:
+        # Удаляем строки default_team и отключаем тесты/шрифты, требующие Soong A14
+        find bootable/recovery -name "Android.bp" -exec sed -i '/default_team/d' {} +
+        find bootable/recovery -name "Android.bp" -exec sed -i '/prebuilt_res/,/}/d' {} +
+        
+        # Отключаем ненужные тестовые подпапки из главного Android.bp
+        sed -i 's/"tests",//g' bootable/recovery/Android.bp 2>/dev/null || true
+        sed -i 's/"updater_sample",//g' bootable/recovery/Android.bp 2>/dev/null || true
+
+        # 2. Настраиваем дерево устройства
+        cd device/xiaomi/curtana
         echo "#!/bin/bash" > vendorsetup.sh
         chmod 755 vendorsetup.sh
 
-        # 2. Показываем список файлов в лог для контроля
-        ls -la
-
-        # 3. Формируем универсальный twrp_curtana.mk
+        # Создаем twrp_curtana.mk
         cat << 'EOF' > twrp_curtana.mk
         $(call inherit-product, $(SRC_TARGET_DIR)/product/aosp_base.mk)
         $(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
-
-        # Подключаем конфигурацию устройства
         $(call inherit-product, device/xiaomi/curtana/device.mk)
 
         PRODUCT_NAME := twrp_curtana
@@ -86,7 +91,7 @@ jobs:
         PRODUCT_MANUFACTURER := Xiaomi
         EOF
 
-        # 4. Регистрируем таргет в стандарте Android 12.1
+        # Регистрируем таргет
         cat << 'EOF' > AndroidProducts.mk
         PRODUCT_MAKEFILES := \
             $(LOCAL_DIR)/twrp_curtana.mk
@@ -95,7 +100,7 @@ jobs:
             twrp_curtana-eng
         EOF
 
-        # 5. Нейтрализуем проверки OrangeFox
+        # Нейтрализуем флаги OrangeFox
         sed -i 's/^OF_/# OF_/g' BoardConfig.mk 2>/dev/null || true
         sed -i 's/^TW_OFOX_/# TW_OFOX_/g' BoardConfig.mk 2>/dev/null || true
 
