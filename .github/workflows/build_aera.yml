@@ -64,16 +64,20 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. Патчим AERA для совместимости с Soong Android 12.1:
-        # Удаляем строки default_team и отключаем тесты/шрифты, требующие Soong A14
+        # 1. Патчим синтаксис A14/A15 под Soong A12.1
         find bootable/recovery -name "Android.bp" -exec sed -i '/default_team/d' {} +
         find bootable/recovery -name "Android.bp" -exec sed -i '/prebuilt_res/,/}/d' {} +
         
-        # Отключаем ненужные тестовые подпапки из главного Android.bp
+        # 2. Убираем отсутствующий модуль external/se_omapi
+        if [ -f bootable/recovery/prebuilt/Android.bp ]; then
+          sed -i '/external\/se_omapi/d' bootable/recovery/prebuilt/Android.bp
+        fi
+
+        # 3. Отключаем тестовые модули
         sed -i 's/"tests",//g' bootable/recovery/Android.bp 2>/dev/null || true
         sed -i 's/"updater_sample",//g' bootable/recovery/Android.bp 2>/dev/null || true
 
-        # 2. Настраиваем дерево устройства
+        # 4. Настраиваем дерево устройства miatoll
         cd device/xiaomi/curtana
         echo "#!/bin/bash" > vendorsetup.sh
         chmod 755 vendorsetup.sh
@@ -91,7 +95,7 @@ jobs:
         PRODUCT_MANUFACTURER := Xiaomi
         EOF
 
-        # Регистрируем таргет
+        # Регистрируем таргет в AndroidProducts.mk
         cat << 'EOF' > AndroidProducts.mk
         PRODUCT_MAKEFILES := \
             $(LOCAL_DIR)/twrp_curtana.mk
@@ -100,7 +104,7 @@ jobs:
             twrp_curtana-eng
         EOF
 
-        # Нейтрализуем флаги OrangeFox
+        # Нейтрализуем специфичные проверки OrangeFox
         sed -i 's/^OF_/# OF_/g' BoardConfig.mk 2>/dev/null || true
         sed -i 's/^TW_OFOX_/# TW_OFOX_/g' BoardConfig.mk 2>/dev/null || true
 
