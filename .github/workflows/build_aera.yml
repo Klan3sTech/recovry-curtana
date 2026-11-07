@@ -56,14 +56,14 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. Заменяем стандартный TWRP на AERA Recovery
+        # 1. Заменяем стандартный TWRP на AERA Recovery (клонируем ветку по умолчанию)
         rm -rf bootable/recovery
-        git clone https://github.com/AERA-Recovery/android_bootable_recovery.git bootable/recovery -b ${{ github.event.inputs.AERA_BRANCH }} --depth=1
+        git clone https://github.com/AERA-Recovery/android_bootable_recovery.git bootable/recovery --depth=1
 
         # 2. Клонируем дерево устройства OrangeFox для miatoll
         mkdir -p device/xiaomi/curtana
         git clone https://github.com/OrangeFoxRecovery/device_xiaomi_miatoll.git device/xiaomi/curtana --depth=1
-
+        
     - name: Adapt Device Tree for AERA
       run: |
         cd ${{ github.workspace }}/work/device/xiaomi/curtana
