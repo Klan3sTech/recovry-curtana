@@ -61,10 +61,10 @@ jobs:
         mkdir -p device/xiaomi/curtana
         git clone https://github.com/OrangeFoxRecovery/device_xiaomi_miatoll.git device/xiaomi/curtana --depth=1
 
-        # 3. Очищаем старые папки и выкачиваем обязательные для AERA внешние пакеты
+        # 3. Клонируем ветку lineage-19.1 (Android 12.1), полностью совместимую с парсером Soong
         rm -rf external/nano external/bash
+        git clone https://github.com/LineageOS/android_external_nano.git external/nano -b lineage-19.1 --depth=1 || \
         git clone https://github.com/LineageOS/android_external_nano.git external/nano --depth=1
-        git clone https://github.com/LineageOS/android_external_bash.git external/bash --depth=1 2>/dev/null || true
 
     - name: Patch AERA and Adapt Device Tree
       run: |
@@ -88,11 +88,16 @@ jobs:
           sed -i '/external\/se_omapi/d' bootable/recovery/prebuilt/Android.bp
         fi
 
-        # 5. Отключаем тестовые модули
+        # 5. Нейтрализуем Android.bp в external/nano, если он попал из A14, оставляя только Android.mk для Kati
+        if [ -f external/nano/Android.bp ]; then
+          rm -f external/nano/Android.bp
+        fi
+
+        # 6. Отключаем тестовые модули
         sed -i 's/"tests",//g' bootable/recovery/Android.bp 2>/dev/null || true
         sed -i 's/"updater_sample",//g' bootable/recovery/Android.bp 2>/dev/null || true
 
-        # 6. Настраиваем дерево устройства miatoll
+        # 7. Настраиваем дерево устройства miatoll
         cd device/xiaomi/curtana
         echo "#!/bin/bash" > vendorsetup.sh
         chmod 755 vendorsetup.sh
