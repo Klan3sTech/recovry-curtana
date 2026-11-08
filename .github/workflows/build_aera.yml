@@ -66,12 +66,7 @@ jobs:
           cp -r /tmp/twrp_libtar/libtar bootable/recovery/
         fi
 
-        # 4. Подтягиваем внешний libjpeg-turbo (на случай если он нужен другим подмодулям)
-        if [ ! -d "external/libjpeg-turbo" ]; then
-          git clone --depth=1 https://android.googlesource.com/platform/external/libjpeg-turbo -b android12L-release external/libjpeg-turbo || true
-        fi
-
-        # 5. Клонируем дерево устройства OrangeFox для miatoll
+        # 4. Клонируем дерево устройства OrangeFox для miatoll
         rm -rf device/xiaomi/curtana
         mkdir -p device/xiaomi/curtana
         git clone https://github.com/OrangeFoxRecovery/device_xiaomi_miatoll.git device/xiaomi/curtana --depth=1
@@ -80,7 +75,7 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. Заглушка для тестов Soong
+        # 1. ЗАГЛУШКА ДЛЯ ТЕСТОВ SOONG
         if [ -f build/blueprint/gotestrunner/gotestrunner.go ]; then
           cat << 'EOF' > build/blueprint/gotestrunner/gotestrunner.go
         package main
@@ -139,7 +134,7 @@ jobs:
         find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i '/health-translate/d' {} + 2>/dev/null || true
         find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i '/libboot_control_client/d' {} + 2>/dev/null || true
 
-        # 9. Удаляем жесткую зависимость от dynamic libjpeg/libjpeg-turbo из recovery
+        # 9. Удаляем зависимость libjpeg из recovery
         find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i -E 's/"libjpeg(-turbo)?",?//g' {} + 2>/dev/null || true
         find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i -E 's/\blibjpeg(-turbo)?\b//g' {} + 2>/dev/null || true
 
@@ -193,6 +188,8 @@ jobs:
         export ALLOW_MISSING_DEPENDENCIES=true
         export SOONG_ALLOW_MISSING_DEPENDENCIES=true
         export BUILD_BROKEN_DUP_RULES=true
+        export GOMAXPROCS=2
+        export GOGC=50
         source build/envsetup.sh
         lunch twrp_curtana-eng
         mka recoveryimage -j$(nproc --all)
