@@ -138,7 +138,11 @@ jobs:
         find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i -E 's/"libjpeg(-turbo)?",?//g' {} + 2>/dev/null || true
         find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i -E 's/\blibjpeg(-turbo)?\b//g' {} + 2>/dev/null || true
 
-        # 10. Настраиваем дерево устройства miatoll
+        # 10. Удаляем зависимость libhealthshim из recovery
+        find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i -E 's/"libhealthshim",?//g' {} + 2>/dev/null || true
+        find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i -E 's/\blibhealthshim\b//g' {} + 2>/dev/null || true
+
+        # 11. Настраиваем дерево устройства miatoll
         cd device/xiaomi/curtana
         echo "#!/bin/bash" > vendorsetup.sh
         chmod 755 vendorsetup.sh
