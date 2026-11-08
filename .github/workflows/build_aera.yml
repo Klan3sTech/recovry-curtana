@@ -57,10 +57,12 @@ jobs:
         git clone https://github.com/AERA-Recovery/android_bootable_recovery.git bootable/recovery --depth=1
 
         # 2. Клонируем дерево устройства OrangeFox для miatoll
+        rm -rf device/xiaomi/curtana
         mkdir -p device/xiaomi/curtana
         git clone https://github.com/OrangeFoxRecovery/device_xiaomi_miatoll.git device/xiaomi/curtana --depth=1
 
-        # 3. Клонируем обязательные для AERA внешние пакеты (nano, bash)
+        # 3. Очищаем старые папки и выкачиваем обязательные для AERA внешние пакеты
+        rm -rf external/nano external/bash
         git clone https://github.com/LineageOS/android_external_nano.git external/nano --depth=1
         git clone https://github.com/LineageOS/android_external_bash.git external/bash --depth=1 2>/dev/null || true
 
