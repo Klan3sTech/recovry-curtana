@@ -65,7 +65,7 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. Отключаем запуск тестов Soong в Go-коде сборщика
+        # 1. Отключаем запуск тестов Soong в исходниках сборщика
         find build/soong/ui -name "*.go" -exec sed -i 's/runGoTests\s*=\s*true/runGoTests = false/g' {} + 2>/dev/null || true
         find build/blueprint/bootstrap -name "*.go" -exec sed -i 's/runTests\s*=\s*true/runTests = false/g' {} + 2>/dev/null || true
 
@@ -96,7 +96,11 @@ jobs:
         sed -i 's/"tests",//g' bootable/recovery/Android.bp 2>/dev/null || true
         sed -i 's/"updater_sample",//g' bootable/recovery/Android.bp 2>/dev/null || true
 
-        # 8. Настраиваем дерево устройства miatoll
+        # 8. Исправляем зависимость от android.hardware.boot-V1-ndk в libtar / recovery
+        find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i 's/"android.hardware.boot-V1-ndk",//g' {} + 2>/dev/null || true
+        find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i 's/android.hardware.boot-V1-ndk//g' {} + 2>/dev/null || true
+
+        # 9. Настраиваем дерево устройства miatoll
         cd device/xiaomi/curtana
         echo "#!/bin/bash" > vendorsetup.sh
         chmod 755 vendorsetup.sh
@@ -123,13 +127,15 @@ jobs:
             twrp_curtana-eng
         EOF
 
-        # Разрешаем сборку неподписанных модулей и дубликаты правил
+        # Разрешаем сборку неподписанных модулей и отсутствующих зависимостей
+        echo "ALLOW_MISSING_DEPENDENCIES := true" >> BoardConfig.mk
+        echo "SOONG_ALLOW_MISSING_DEPENDENCIES := true" >> BoardConfig.mk
         echo "BUILD_BROKEN_VINTF_CHECKS := true" >> BoardConfig.mk
         echo "BUILD_BROKEN_MISSING_BUILD_REQUIREMENTS := true" >> BoardConfig.mk
         echo "BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES := true" >> BoardConfig.mk
         echo "BUILD_BROKEN_DUP_RULES := true" >> BoardConfig.mk
 
-        # Удаляем дублирующее копирование libandroidicu из дерева устройства и recovery
+        # Удаляем дублирующее копирование libandroidicu
         cd ${{ github.workspace }}/work
         find device/xiaomi/curtana bootable/recovery -type f \( -name "*.mk" -o -name "*.bp" \) -exec sed -i '/libandroidicu/d' {} + 2>/dev/null || true
 
