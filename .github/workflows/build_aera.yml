@@ -160,20 +160,15 @@ jobs:
         find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i -E 's/"libhealthshim",?//g' {} + 2>/dev/null || true
         find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i -E 's/\blibhealthshim\b//g' {} + 2>/dev/null || true
 
-        # 11. Подготовка полной базы terminfo прямо в дерево пребилдов и ramdisk
-        mkdir -p device/xiaomi/curtana/terminfo
-        if [ -d /lib/terminfo ]; then
-          cp -r /lib/terminfo/* device/xiaomi/curtana/terminfo/ 2>/dev/null || true
-        elif [ -d /usr/share/terminfo ]; then
-          cp -r /usr/share/terminfo/* device/xiaomi/curtana/terminfo/ 2>/dev/null || true
-        fi
+        # 11. Вырезаем terminfo из правил file_contexts, чтобы Ninja не искал несуществующие правила сборки файлов
+        find system/sepolicy bootable/recovery device/xiaomi/curtana -type f \( -name "*file_contexts*" \) -exec sed -i '/terminfo/d' {} + 2>/dev/null || true
 
         # 12. Настраиваем дерево устройства miatoll
         cd device/xiaomi/curtana
         echo "#!/bin/bash" > vendorsetup.sh
         chmod 755 vendorsetup.sh
 
-        # Создаем twrp_curtana.mk с автоматическим копированием базы terminfo
+        # Создаем twrp_curtana.mk
         cat << 'EOF' > twrp_curtana.mk
         $(call inherit-product, $(SRC_TARGET_DIR)/product/aosp_base.mk)
         $(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
@@ -184,9 +179,6 @@ jobs:
         PRODUCT_BRAND := Xiaomi
         PRODUCT_MODEL := Redmi Note 9S
         PRODUCT_MANUFACTURER := Xiaomi
-
-        # Копирование всех файлов terminfo в ramdisk recovery
-        PRODUCT_COPY_FILES += $(shell find device/xiaomi/curtana/terminfo -type f | sed 's|^device/xiaomi/curtana/terminfo/||' | awk '{print "device/xiaomi/curtana/terminfo/" $$1 ":recovery/root/system/etc/terminfo/" $$1}')
         EOF
 
         # Регистрируем таргет в AndroidProducts.mk
@@ -223,6 +215,16 @@ jobs:
         export BUILD_BROKEN_DUP_RULES=true
         export GOMAXPROCS=2
         export GOGC=50
+
+        # Предварительно копируем terminfo напрямую в out без создания зависимостей в Makefile
+        TARGET_DIR="out/target/product/curtana/recovery/root/system/etc/terminfo"
+        mkdir -p "$TARGET_DIR"
+        if [ -d /lib/terminfo ]; then
+          cp -r /lib/terminfo/* "$TARGET_DIR/" 2>/dev/null || true
+        elif [ -d /usr/share/terminfo ]; then
+          cp -r /usr/share/terminfo/* "$TARGET_DIR/" 2>/dev/null || true
+        fi
+
         source build/envsetup.sh
         lunch twrp_curtana-eng
         mka recoveryimage -j$(nproc --all)
