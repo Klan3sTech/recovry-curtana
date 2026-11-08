@@ -65,11 +65,11 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. Отключаем запуск тестов Soong в исходниках сборщика
+        # 1. Отключаем запуск тестов Soong в Go-коде сборщика
         find build/soong/ui -name "*.go" -exec sed -i 's/runGoTests\s*=\s*true/runGoTests = false/g' {} + 2>/dev/null || true
         find build/blueprint/bootstrap -name "*.go" -exec sed -i 's/runTests\s*=\s*true/runTests = false/g' {} + 2>/dev/null || true
 
-        # 2. Нейтрализуем ВСЕ директивы $(error ...) в aera_build.mk
+        # 2. Нейтрализуем все директивы $(error ...) в aera_build.mk
         if [ -f bootable/recovery/aera_build.mk ]; then
           sed -i 's/\$(error/\$(warning/g' bootable/recovery/aera_build.mk
         fi
@@ -123,19 +123,19 @@ jobs:
             twrp_curtana-eng
         EOF
 
-        # Разрешаем сборку неподписанных модулей и дубликаты правил/файлов
+        # Разрешаем сборку неподписанных модулей и дубликаты правил
         echo "BUILD_BROKEN_VINTF_CHECKS := true" >> BoardConfig.mk
         echo "BUILD_BROKEN_MISSING_BUILD_REQUIREMENTS := true" >> BoardConfig.mk
-        echo "BUILD_BROKEN_DUP_COPY_HEADERS := true" >> BoardConfig.mk
         echo "BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES := true" >> BoardConfig.mk
         echo "BUILD_BROKEN_DUP_RULES := true" >> BoardConfig.mk
 
-        # Удаляем дублирующее копирование libandroidicu из дерева устройства
-        find . -name "*.mk" -exec sed -i '/libandroidicu\.so/d' {} + 2>/dev/null || true
+        # Удаляем дублирующее копирование libandroidicu из дерева устройства и recovery
+        cd ${{ github.workspace }}/work
+        find device/xiaomi/curtana bootable/recovery -type f \( -name "*.mk" -o -name "*.bp" \) -exec sed -i '/libandroidicu/d' {} + 2>/dev/null || true
 
         # Нейтрализуем проверки OrangeFox
-        sed -i 's/^OF_/# OF_/g' BoardConfig.mk 2>/dev/null || true
-        sed -i 's/^TW_OFOX_/# TW_OFOX_/g' BoardConfig.mk 2>/dev/null || true
+        sed -i 's/^OF_/# OF_/g' device/xiaomi/curtana/BoardConfig.mk 2>/dev/null || true
+        sed -i 's/^TW_OFOX_/# TW_OFOX_/g' device/xiaomi/curtana/BoardConfig.mk 2>/dev/null || true
 
     - name: Build Recovery Image
       run: |
