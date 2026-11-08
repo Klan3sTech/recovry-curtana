@@ -77,35 +77,39 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. Нейтрализуем директивы $(error ...) вокруг проверок nano в aera_build.mk
+        # 1. Полное принудительное отключение запуска тестов Soong в Go-коде сборщика
+        find build/soong/ui -name "*.go" -exec sed -i 's/runGoTests\s*=\s*true/runGoTests = false/g' {} + 2>/dev/null || true
+        find build/blueprint/bootstrap -name "*.go" -exec sed -i 's/runTests\s*=\s*true/runTests = false/g' {} + 2>/dev/null || true
+
+        # 2. Нейтрализуем директивы $(error ...) вокруг проверок nano в aera_build.mk
         if [ -f bootable/recovery/aera_build.mk ]; then
           sed -i '/Nano sources/s/\$(error/\$(warning/g' bootable/recovery/aera_build.mk
           sed -i '/nano/s/\$(error/\$(warning/g' bootable/recovery/aera_build.mk
         fi
 
-        # 2. Удаляем свойства Android 14+ из всех Android.bp recovery
+        # 3. Удаляем свойства Android 14+ из всех Android.bp recovery
         find bootable/recovery -name "Android.bp" -exec sed -i '/default_team/d' {} +
         
-        # 3. Очищаем fonts/Android.bp от несовместимого prebuilt_res
+        # 4. Очищаем fonts/Android.bp от несовместимого prebuilt_res
         if [ -f bootable/recovery/fonts/Android.bp ]; then
           echo "// Cleared for A12.1 build" > bootable/recovery/fonts/Android.bp
         fi
 
-        # 4. Отключаем модуль aera-fingerprint
+        # 5. Отключаем модуль aera-fingerprint
         if [ -f bootable/recovery/aeraui/Android.bp ]; then
           sed -i '/name: "aera-fingerprint"/a \    enabled: false,' bootable/recovery/aeraui/Android.bp
         fi
 
-        # 5. Убираем модуль external/se_omapi
+        # 6. Убираем модуль external/se_omapi
         if [ -f bootable/recovery/prebuilt/Android.bp ]; then
           sed -i '/external\/se_omapi/d' bootable/recovery/prebuilt/Android.bp
         fi
 
-        # 6. Отключаем тестовые директории в recovery
+        # 7. Отключаем тестовые директории в recovery
         sed -i 's/"tests",//g' bootable/recovery/Android.bp 2>/dev/null || true
         sed -i 's/"updater_sample",//g' bootable/recovery/Android.bp 2>/dev/null || true
 
-        # 7. Настраиваем дерево устройства miatoll
+        # 8. Настраиваем дерево устройства miatoll
         cd device/xiaomi/curtana
         echo "#!/bin/bash" > vendorsetup.sh
         chmod 755 vendorsetup.sh
