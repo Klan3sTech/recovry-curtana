@@ -52,11 +52,21 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. Заменяем TWRP на AERA Recovery
+        # 1. Сохраняем оригинальный совместимый libtar из TWRP 12.1
+        mkdir -p /tmp/twrp_libtar
+        cp -r bootable/recovery/libtar /tmp/twrp_libtar/ 2>/dev/null || true
+
+        # 2. Заменяем TWRP на AERA Recovery
         rm -rf bootable/recovery
         git clone https://github.com/AERA-Recovery/android_bootable_recovery.git bootable/recovery --depth=1
 
-        # 2. Клонируем дерево устройства OrangeFox для miatoll
+        # 3. Восстанавливаем совместимый libtar из TWRP 12.1, если он существовал
+        if [ -d /tmp/twrp_libtar/libtar ]; then
+          rm -rf bootable/recovery/libtar
+          cp -r /tmp/twrp_libtar/libtar bootable/recovery/
+        fi
+
+        # 4. Клонируем дерево устройства OrangeFox для miatoll
         rm -rf device/xiaomi/curtana
         mkdir -p device/xiaomi/curtana
         git clone https://github.com/OrangeFoxRecovery/device_xiaomi_miatoll.git device/xiaomi/curtana --depth=1
@@ -118,9 +128,9 @@ jobs:
         sed -i 's/"tests",//g' bootable/recovery/Android.bp 2>/dev/null || true
         sed -i 's/"updater_sample",//g' bootable/recovery/Android.bp 2>/dev/null || true
 
-        # 8. Вырезаем все зависимости от несовместимых модулей *-ndk
-        find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i 's/"android\.hardware\.[a-zA-Z0-9._-]*ndk[a-zA-Z0-9._-]*",//g' {} + 2>/dev/null || true
-        find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i 's/android\.hardware\.[a-zA-Z0-9._-]*ndk[a-zA-Z0-9._-]*//g' {} + 2>/dev/null || true
+        # 8. Полная очистка зависимостей от *-ndk библиотек (hardware, system, keystore2 и др.)
+        find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i -E 's/"[^"]*-V[0-9]+-ndk[^"]*",?//g' {} + 2>/dev/null || true
+        find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i -E 's/[a-zA-Z0-9._-]+\-V[0-9]+\-ndk[a-zA-Z0-9._-]*//g' {} + 2>/dev/null || true
 
         # 9. Настраиваем дерево устройства miatoll
         cd device/xiaomi/curtana
