@@ -96,9 +96,9 @@ jobs:
         sed -i 's/"tests",//g' bootable/recovery/Android.bp 2>/dev/null || true
         sed -i 's/"updater_sample",//g' bootable/recovery/Android.bp 2>/dev/null || true
 
-        # 8. Исправляем зависимость от android.hardware.boot-V1-ndk в libtar / recovery
-        find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i 's/"android.hardware.boot-V1-ndk",//g' {} + 2>/dev/null || true
-        find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i 's/android.hardware.boot-V1-ndk//g' {} + 2>/dev/null || true
+        # 8. Вырезаем все зависимости от несовместимых модулей *-ndk (boot, gatekeeper, fastboot и др.)
+        find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i 's/"android\.hardware\.[a-zA-Z0-9._-]*ndk[a-zA-Z0-9._-]*",//g' {} + 2>/dev/null || true
+        find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i 's/android\.hardware\.[a-zA-Z0-9._-]*ndk[a-zA-Z0-9._-]*//g' {} + 2>/dev/null || true
 
         # 9. Настраиваем дерево устройства miatoll
         cd device/xiaomi/curtana
