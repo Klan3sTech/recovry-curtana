@@ -75,7 +75,7 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. ЗАГЛУШКА ДЛЯ ТЕСТОВ SOONG (мгновенное прохождение всех Go-тестов)
+        # 1. Заглушка для тестов Soong
         if [ -f build/blueprint/gotestrunner/gotestrunner.go ]; then
           cat << 'EOF' > build/blueprint/gotestrunner/gotestrunner.go
         package main
@@ -134,7 +134,11 @@ jobs:
         find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i '/health-translate/d' {} + 2>/dev/null || true
         find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i '/libboot_control_client/d' {} + 2>/dev/null || true
 
-        # 9. Настраиваем дерево устройства miatoll
+        # 9. Исправляем зависимость libjpeg -> libjpeg-turbo
+        find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i 's/"libjpeg"/"libjpeg-turbo"/g' {} + 2>/dev/null || true
+        find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i 's/libjpeg\b/libjpeg-turbo/g' {} + 2>/dev/null || true
+
+        # 10. Настраиваем дерево устройства miatoll
         cd device/xiaomi/curtana
         echo "#!/bin/bash" > vendorsetup.sh
         chmod 755 vendorsetup.sh
