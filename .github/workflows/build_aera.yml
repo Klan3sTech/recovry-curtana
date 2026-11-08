@@ -52,7 +52,7 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. Заменяем стандартный TWRP на AERA Recovery
+        # 1. Заменяем TWRP на AERA Recovery
         rm -rf bootable/recovery
         git clone https://github.com/AERA-Recovery/android_bootable_recovery.git bootable/recovery --depth=1
 
@@ -61,13 +61,26 @@ jobs:
         mkdir -p device/xiaomi/curtana
         git clone https://github.com/OrangeFoxRecovery/device_xiaomi_miatoll.git device/xiaomi/curtana --depth=1
 
+        # 3. Создаем фиктивный модуль nano, чтобы удовлетворить условие aera_build.mk
+        rm -rf external/nano
+        mkdir -p external/nano/src
+        touch external/nano/src/nano.c
+        cat << 'EOF' > external/nano/Android.mk
+        LOCAL_PATH := $(call my-dir)
+        include $(CLEAR_VARS)
+        LOCAL_MODULE := nano
+        LOCAL_MODULE_TAGS := optional
+        include $(BUILD_PHONY_PACKAGE)
+        EOF
+
     - name: Patch AERA and Adapt Device Tree
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. Отключаем блокирующую ошибку Nano sources not present в aera_build.mk
+        # 1. Нейтрализуем директивы $(error ...) вокруг проверок nano в aera_build.mk
         if [ -f bootable/recovery/aera_build.mk ]; then
-          sed -i 's/\$(error Nano sources not present; exiting.)/\$(warning Nano skipped)/g' bootable/recovery/aera_build.mk
+          sed -i '/Nano sources/s/\$(error/\$(warning/g' bootable/recovery/aera_build.mk
+          sed -i '/nano/s/\$(error/\$(warning/g' bootable/recovery/aera_build.mk
         fi
 
         # 2. Удаляем свойства Android 14+ из всех Android.bp recovery
