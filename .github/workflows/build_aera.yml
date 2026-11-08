@@ -65,13 +65,24 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. ЗАГЛУШКА ДЛЯ ТЕСТОВ SOONG (мгновенный пропуск apex, sdk и др.)
-        # Подменяем исходник gotestrunner, чтобы тесты сразу возвращали 0
+        # 1. ЗАГЛУШКА ДЛЯ ТЕСТОВ SOONG (создает обязательный флаг -f test.passed и завершается)
         if [ -f build/blueprint/gotestrunner/gotestrunner.go ]; then
           cat << 'EOF' > build/blueprint/gotestrunner/gotestrunner.go
         package main
-        import "os"
+        import (
+            "os"
+            "path/filepath"
+        )
         func main() {
+            args := os.Args[1:]
+            for i := 0; i < len(args); i++ {
+                if args[i] == "-f" && i+1 < len(args) {
+                    outFile := args[i+1]
+                    os.MkdirAll(filepath.Dir(outFile), 0755)
+                    os.WriteFile(outFile, []byte{}, 0644)
+                    break
+                }
+            }
             os.Exit(0)
         }
         EOF
@@ -104,7 +115,7 @@ jobs:
         sed -i 's/"tests",//g' bootable/recovery/Android.bp 2>/dev/null || true
         sed -i 's/"updater_sample",//g' bootable/recovery/Android.bp 2>/dev/null || true
 
-        # 8. Вырезаем все зависимости от несовместимых модулей *-ndk (boot, gatekeeper, fastboot и др.)
+        # 8. Вырезаем все зависимости от несовместимых модулей *-ndk
         find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i 's/"android\.hardware\.[a-zA-Z0-9._-]*ndk[a-zA-Z0-9._-]*",//g' {} + 2>/dev/null || true
         find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i 's/android\.hardware\.[a-zA-Z0-9._-]*ndk[a-zA-Z0-9._-]*//g' {} + 2>/dev/null || true
 
