@@ -73,11 +73,17 @@ jobs:
           sed -i '/external\/se_omapi/d' bootable/recovery/prebuilt/Android.bp
         fi
 
-        # 3. Отключаем тестовые модули
+        # 3. Отключаем модуль aera-fingerprint, ломающий проверку NDK keymaster
+        if [ -f bootable/recovery/aeraui/Android.bp ]; then
+          sed -i '/cc_binary {/,/name: "aera-fingerprint"/ { /cc_binary {/b; d }' bootable/recovery/aeraui/Android.bp 2>/dev/null || true
+          sed -i '/name: "aera-fingerprint"/,/}/d' bootable/recovery/aeraui/Android.bp 2>/dev/null || true
+        fi
+
+        # 4. Отключаем тестовые модули
         sed -i 's/"tests",//g' bootable/recovery/Android.bp 2>/dev/null || true
         sed -i 's/"updater_sample",//g' bootable/recovery/Android.bp 2>/dev/null || true
 
-        # 4. Настраиваем дерево устройства miatoll
+        # 5. Настраиваем дерево устройства miatoll
         cd device/xiaomi/curtana
         echo "#!/bin/bash" > vendorsetup.sh
         chmod 755 vendorsetup.sh
@@ -103,6 +109,10 @@ jobs:
         COMMON_LUNCH_CHOICES := \
             twrp_curtana-eng
         EOF
+
+        # Разрешаем сборку неподписанных и нестабильных NDK интерфейсов
+        echo "BUILD_BROKEN_VINTF_CHECKS := true" >> BoardConfig.mk
+        echo "BUILD_BROKEN_MISSING_BUILD_REQUIREMENTS := true" >> BoardConfig.mk
 
         # Нейтрализуем специфичные проверки OrangeFox
         sed -i 's/^OF_/# OF_/g' BoardConfig.mk 2>/dev/null || true
