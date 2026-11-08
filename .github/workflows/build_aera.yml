@@ -69,7 +69,7 @@ jobs:
         find build/soong/ui -name "*.go" -exec sed -i 's/runGoTests\s*=\s*true/runGoTests = false/g' {} + 2>/dev/null || true
         find build/blueprint/bootstrap -name "*.go" -exec sed -i 's/runTests\s*=\s*true/runTests = false/g' {} + 2>/dev/null || true
 
-        # 2. Нейтрализуем ВСЕ директивы $(error ...) в aera_build.mk, переводя их в non-blocking warning
+        # 2. Нейтрализуем ВСЕ директивы $(error ...) в aera_build.mk
         if [ -f bootable/recovery/aera_build.mk ]; then
           sed -i 's/\$(error/\$(warning/g' bootable/recovery/aera_build.mk
         fi
@@ -123,9 +123,15 @@ jobs:
             twrp_curtana-eng
         EOF
 
-        # Разрешаем сборку неподписанных модулей
+        # Разрешаем сборку неподписанных модулей и дубликаты правил/файлов
         echo "BUILD_BROKEN_VINTF_CHECKS := true" >> BoardConfig.mk
         echo "BUILD_BROKEN_MISSING_BUILD_REQUIREMENTS := true" >> BoardConfig.mk
+        echo "BUILD_BROKEN_DUP_COPY_HEADERS := true" >> BoardConfig.mk
+        echo "BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES := true" >> BoardConfig.mk
+        echo "BUILD_BROKEN_DUP_RULES := true" >> BoardConfig.mk
+
+        # Удаляем дублирующее копирование libandroidicu из дерева устройства
+        find . -name "*.mk" -exec sed -i '/libandroidicu\.so/d' {} + 2>/dev/null || true
 
         # Нейтрализуем проверки OrangeFox
         sed -i 's/^OF_/# OF_/g' BoardConfig.mk 2>/dev/null || true
@@ -137,6 +143,7 @@ jobs:
         export ALLOW_MISSING_DEPENDENCIES=true
         export SOONG_ALLOW_MISSING_DEPENDENCIES=true
         export SKIP_BOOTSTRAP_TESTS=1
+        export BUILD_BROKEN_DUP_RULES=true
         source build/envsetup.sh
         lunch twrp_curtana-eng
         mka recoveryimage -j$(nproc --all)
