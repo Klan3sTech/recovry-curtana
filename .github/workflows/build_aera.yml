@@ -61,7 +61,7 @@ jobs:
         mkdir -p device/xiaomi/curtana
         git clone https://github.com/OrangeFoxRecovery/device_xiaomi_miatoll.git device/xiaomi/curtana --depth=1
 
-        # 3. Клонируем ветку lineage-19.1 (Android 12.1), полностью совместимую с парсером Soong
+        # 3. Клонируем совместимую ветку nano (lineage-19.1)
         rm -rf external/nano external/bash
         git clone https://github.com/LineageOS/android_external_nano.git external/nano -b lineage-19.1 --depth=1 || \
         git clone https://github.com/LineageOS/android_external_nano.git external/nano --depth=1
@@ -70,34 +70,40 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. Удаляем свойства Android 14+ из всех Android.bp
+        # 1. ПОЛНОЕ ОТКЛЮЧЕНИЕ ТЕСТОВ SOONG И BLUEPRINT
+        # Вырезаем блоки testSrcs, чтобы Blueprint вообще не создавал цели 'test android/soong/...'
+        find build/soong build/blueprint -name "Android.bp" -o -name "Blueprints" | while read -r f; do
+          sed -i '/testSrcs: \[/,/\]/d' "$f" 2>/dev/null || true
+        done
+
+        # 2. Удаляем свойства Android 14+ из всех Android.bp рекавери
         find bootable/recovery -name "Android.bp" -exec sed -i '/default_team/d' {} +
         
-        # 2. Очищаем fonts/Android.bp от несовместимого prebuilt_res
+        # 3. Очищаем fonts/Android.bp от несовместимого prebuilt_res
         if [ -f bootable/recovery/fonts/Android.bp ]; then
           echo "// Cleared for A12.1 build" > bootable/recovery/fonts/Android.bp
         fi
 
-        # 3. Отключаем модуль aera-fingerprint
+        # 4. Отключаем модуль aera-fingerprint
         if [ -f bootable/recovery/aeraui/Android.bp ]; then
           sed -i '/name: "aera-fingerprint"/a \    enabled: false,' bootable/recovery/aeraui/Android.bp
         fi
 
-        # 4. Убираем модуль external/se_omapi
+        # 5. Убираем модуль external/se_omapi
         if [ -f bootable/recovery/prebuilt/Android.bp ]; then
           sed -i '/external\/se_omapi/d' bootable/recovery/prebuilt/Android.bp
         fi
 
-        # 5. Нейтрализуем Android.bp в external/nano, если он попал из A14, оставляя только Android.mk для Kati
+        # 6. Нейтрализуем Android.bp в external/nano, оставляя только Android.mk
         if [ -f external/nano/Android.bp ]; then
           rm -f external/nano/Android.bp
         fi
 
-        # 6. Отключаем тестовые модули
+        # 7. Отключаем тестовые директории в recovery
         sed -i 's/"tests",//g' bootable/recovery/Android.bp 2>/dev/null || true
         sed -i 's/"updater_sample",//g' bootable/recovery/Android.bp 2>/dev/null || true
 
-        # 7. Настраиваем дерево устройства miatoll
+        # 8. Настраиваем дерево устройства miatoll
         cd device/xiaomi/curtana
         echo "#!/bin/bash" > vendorsetup.sh
         chmod 755 vendorsetup.sh
