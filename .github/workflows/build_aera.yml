@@ -52,15 +52,15 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. Сохраняем оригинальный совместимый libtar из TWRP 12.1
+        # 1. Сохраняем чистый libtar из TWRP 12.1
         mkdir -p /tmp/twrp_libtar
         cp -r bootable/recovery/libtar /tmp/twrp_libtar/ 2>/dev/null || true
 
-        # 2. Заменяем TWRP на AERA Recovery
+        # 2. Заменяем стандартный TWRP на AERA Recovery
         rm -rf bootable/recovery
         git clone https://github.com/AERA-Recovery/android_bootable_recovery.git bootable/recovery --depth=1
 
-        # 3. Восстанавливаем совместимый libtar из TWRP 12.1, если он был
+        # 3. Восстанавливаем проверенный libtar
         if [ -d /tmp/twrp_libtar/libtar ]; then
           rm -rf bootable/recovery/libtar
           cp -r /tmp/twrp_libtar/libtar bootable/recovery/
@@ -75,7 +75,7 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. ЗАГЛУШКА ДЛЯ ТЕСТОВ SOONG (совместимая со всеми версиями Go)
+        # 1. ЗАГЛУШКА ДЛЯ ТЕСТОВ SOONG (мгновенное прохождение всех Go-тестов)
         if [ -f build/blueprint/gotestrunner/gotestrunner.go ]; then
           cat << 'EOF' > build/blueprint/gotestrunner/gotestrunner.go
         package main
@@ -128,10 +128,11 @@ jobs:
         sed -i 's/"tests",//g' bootable/recovery/Android.bp 2>/dev/null || true
         sed -i 's/"updater_sample",//g' bootable/recovery/Android.bp 2>/dev/null || true
 
-        # 8. Тотальная вырезка любых модулей AIDL NDK из bootable/recovery
+        # 8. Вырезаем все упоминания NDK и A/B-библиотек из recovery
         find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i -E 's/"[^"]*-ndk(_platform)?",?//g' {} + 2>/dev/null || true
         find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i -E 's/[a-zA-Z0-9._-]+-ndk(_platform)?//g' {} + 2>/dev/null || true
         find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i '/health-translate/d' {} + 2>/dev/null || true
+        find bootable/recovery -type f \( -name "Android.bp" -o -name "Android.mk" \) -exec sed -i '/libboot_control_client/d' {} + 2>/dev/null || true
 
         # 9. Настраиваем дерево устройства miatoll
         cd device/xiaomi/curtana
@@ -167,6 +168,7 @@ jobs:
         echo "BUILD_BROKEN_MISSING_BUILD_REQUIREMENTS := true" >> BoardConfig.mk
         echo "BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES := true" >> BoardConfig.mk
         echo "BUILD_BROKEN_DUP_RULES := true" >> BoardConfig.mk
+        echo "AB_OTA_UPDATER := false" >> BoardConfig.mk
 
         # Удаляем дублирующее копирование libandroidicu
         cd ${{ github.workspace }}/work
