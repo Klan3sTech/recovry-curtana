@@ -64,26 +64,19 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. Патчим синтаксис A14/A15 под Soong A12.1
+        # 1. Точечно удаляем только несовместимые свойства Android 14/15, не трогая скобки и тела модулей
         find bootable/recovery -name "Android.bp" -exec sed -i '/default_team/d' {} +
-        find bootable/recovery -name "Android.bp" -exec sed -i '/prebuilt_res/,/}/d' {} +
         
-        # 2. Убираем отсутствующий модуль external/se_omapi
+        # 2. Убираем только обращение к несуществующему namespace external/se_omapi
         if [ -f bootable/recovery/prebuilt/Android.bp ]; then
           sed -i '/external\/se_omapi/d' bootable/recovery/prebuilt/Android.bp
         fi
 
-        # 3. Отключаем модуль aera-fingerprint, ломающий проверку NDK keymaster
-        if [ -f bootable/recovery/aeraui/Android.bp ]; then
-          sed -i '/cc_binary {/,/name: "aera-fingerprint"/ { /cc_binary {/b; d }' bootable/recovery/aeraui/Android.bp 2>/dev/null || true
-          sed -i '/name: "aera-fingerprint"/,/}/d' bootable/recovery/aeraui/Android.bp 2>/dev/null || true
-        fi
-
-        # 4. Отключаем тестовые модули
+        # 3. Отключаем тестовые директории
         sed -i 's/"tests",//g' bootable/recovery/Android.bp 2>/dev/null || true
         sed -i 's/"updater_sample",//g' bootable/recovery/Android.bp 2>/dev/null || true
 
-        # 5. Настраиваем дерево устройства miatoll
+        # 4. Настраиваем дерево устройства miatoll
         cd device/xiaomi/curtana
         echo "#!/bin/bash" > vendorsetup.sh
         chmod 755 vendorsetup.sh
@@ -110,11 +103,12 @@ jobs:
             twrp_curtana-eng
         EOF
 
-        # Разрешаем сборку неподписанных и нестабильных NDK интерфейсов
+        # Разрешаем сборку неподписанных модулей и обход VINTF-проверок
         echo "BUILD_BROKEN_VINTF_CHECKS := true" >> BoardConfig.mk
         echo "BUILD_BROKEN_MISSING_BUILD_REQUIREMENTS := true" >> BoardConfig.mk
+        echo "BOARD_SUPPRESS_SECURE_ERASE := true" >> BoardConfig.mk
 
-        # Нейтрализуем специфичные проверки OrangeFox
+        # Нейтрализуем проверки OrangeFox
         sed -i 's/^OF_/# OF_/g' BoardConfig.mk 2>/dev/null || true
         sed -i 's/^TW_OFOX_/# TW_OFOX_/g' BoardConfig.mk 2>/dev/null || true
 
@@ -122,6 +116,9 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         export ALLOW_MISSING_DEPENDENCIES=true
+        export SOONG_ALLOW_MISSING_DEPENDENCIES=true
+        export DISABLE_STUB_VALIDATION=true
+        export TARGET_BUILD_UNOFFICIAL=true
         source build/envsetup.sh
         lunch twrp_curtana-eng
         mka recoveryimage -j$(nproc --all)
