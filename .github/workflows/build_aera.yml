@@ -65,7 +65,7 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. ЗАГЛУШКА ДЛЯ ТЕСТОВ SOONG (создает обязательный флаг -f test.passed и завершается)
+        # 1. ЗАГЛУШКА ДЛЯ ТЕСТОВ SOONG (совместимая со всеми версиями Go)
         if [ -f build/blueprint/gotestrunner/gotestrunner.go ]; then
           cat << 'EOF' > build/blueprint/gotestrunner/gotestrunner.go
         package main
@@ -79,7 +79,10 @@ jobs:
                 if args[i] == "-f" && i+1 < len(args) {
                     outFile := args[i+1]
                     os.MkdirAll(filepath.Dir(outFile), 0755)
-                    os.WriteFile(outFile, []byte{}, 0644)
+                    f, err := os.Create(outFile)
+                    if err == nil {
+                        f.Close()
+                    }
                     break
                 }
             }
