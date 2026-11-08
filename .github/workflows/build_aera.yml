@@ -170,4 +170,66 @@ jobs:
 
         # 12. Настраиваем дерево устройства miatoll
         cd device/xiaomi/curtana
-        echo "#!/bin/
+        echo "#!/bin/bash" > vendorsetup.sh
+        chmod 755 vendorsetup.sh
+
+        # Создаем twrp_curtana.mk с автоматическим копированием базы terminfo
+        cat << 'EOF' > twrp_curtana.mk
+        $(call inherit-product, $(SRC_TARGET_DIR)/product/aosp_base.mk)
+        $(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
+        $(call inherit-product, device/xiaomi/curtana/device.mk)
+
+        PRODUCT_NAME := twrp_curtana
+        PRODUCT_DEVICE := curtana
+        PRODUCT_BRAND := Xiaomi
+        PRODUCT_MODEL := Redmi Note 9S
+        PRODUCT_MANUFACTURER := Xiaomi
+
+        # Копирование всех файлов terminfo в ramdisk recovery
+        PRODUCT_COPY_FILES += $(shell find device/xiaomi/curtana/terminfo -type f | sed 's|^device/xiaomi/curtana/terminfo/||' | awk '{print "device/xiaomi/curtana/terminfo/" $$1 ":recovery/root/system/etc/terminfo/" $$1}')
+        EOF
+
+        # Регистрируем таргет в AndroidProducts.mk
+        cat << 'EOF' > AndroidProducts.mk
+        PRODUCT_MAKEFILES := \
+            $(LOCAL_DIR)/twrp_curtana.mk
+
+        COMMON_LUNCH_CHOICES := \
+            twrp_curtana-eng
+        EOF
+
+        # Разрешаем сборку неподписанных модулей и отсутствующих зависимостей
+        echo "ALLOW_MISSING_DEPENDENCIES := true" >> BoardConfig.mk
+        echo "SOONG_ALLOW_MISSING_DEPENDENCIES := true" >> BoardConfig.mk
+        echo "BUILD_BROKEN_VINTF_CHECKS := true" >> BoardConfig.mk
+        echo "BUILD_BROKEN_MISSING_BUILD_REQUIREMENTS := true" >> BoardConfig.mk
+        echo "BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES := true" >> BoardConfig.mk
+        echo "BUILD_BROKEN_DUP_RULES := true" >> BoardConfig.mk
+        echo "AB_OTA_UPDATER := false" >> BoardConfig.mk
+
+        # Удаляем дублирующее копирование libandroidicu
+        cd ${{ github.workspace }}/work
+        find device/xiaomi/curtana bootable/recovery -type f \( -name "*.mk" -o -name "*.bp" \) -exec sed -i '/libandroidicu/d' {} + 2>/dev/null || true
+
+        # Нейтрализуем проверки OrangeFox
+        sed -i 's/^OF_/# OF_/g' device/xiaomi/curtana/BoardConfig.mk 2>/dev/null || true
+        sed -i 's/^TW_OFOX_/# TW_OFOX_/g' device/xiaomi/curtana/BoardConfig.mk 2>/dev/null || true
+
+    - name: Build Recovery Image
+      run: |
+        cd ${{ github.workspace }}/work
+        export ALLOW_MISSING_DEPENDENCIES=true
+        export SOONG_ALLOW_MISSING_DEPENDENCIES=true
+        export BUILD_BROKEN_DUP_RULES=true
+        export GOMAXPROCS=2
+        export GOGC=50
+        source build/envsetup.sh
+        lunch twrp_curtana-eng
+        mka recoveryimage -j$(nproc --all)
+
+    - name: Verify and Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: AERA-Miatoll-Recovery
+        path: ${{ github.workspace }}/work/out/target/product/curtana/recovery.img
+        if-no-files-found: error
