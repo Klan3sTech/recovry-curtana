@@ -48,31 +48,35 @@ jobs:
         repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b ${{ github.event.inputs.MANIFEST_BRANCH }} --depth=1
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
-    - name: Clone AERA Source and Device Tree
+    - name: Clone AERA Source, Device Tree and Dependencies
       run: |
         cd ${{ github.workspace }}/work
         
-        # Заменяем стандартный TWRP на AERA Recovery
+        # 1. Заменяем стандартный TWRP на AERA Recovery
         rm -rf bootable/recovery
         git clone https://github.com/AERA-Recovery/android_bootable_recovery.git bootable/recovery --depth=1
 
-        # Клонируем дерево устройства OrangeFox для miatoll
+        # 2. Клонируем дерево устройства OrangeFox для miatoll
         mkdir -p device/xiaomi/curtana
         git clone https://github.com/OrangeFoxRecovery/device_xiaomi_miatoll.git device/xiaomi/curtana --depth=1
+
+        # 3. Клонируем обязательные для AERA внешние пакеты (nano, bash)
+        git clone https://github.com/LineageOS/android_external_nano.git external/nano --depth=1
+        git clone https://github.com/LineageOS/android_external_bash.git external/bash --depth=1 2>/dev/null || true
 
     - name: Patch AERA and Adapt Device Tree
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. Удаляем свойство default_team (A14+) во всех Android.bp
+        # 1. Удаляем свойства Android 14+ из всех Android.bp
         find bootable/recovery -name "Android.bp" -exec sed -i '/default_team/d' {} +
         
-        # 2. Очищаем fonts/Android.bp, чтобы Soong не спотыкался о prebuilt_res
+        # 2. Очищаем fonts/Android.bp от несовместимого prebuilt_res
         if [ -f bootable/recovery/fonts/Android.bp ]; then
           echo "// Cleared for A12.1 build" > bootable/recovery/fonts/Android.bp
         fi
 
-        # 3. Отключаем модуль aera-fingerprint без нарушения синтаксиса скобок
+        # 3. Отключаем модуль aera-fingerprint
         if [ -f bootable/recovery/aeraui/Android.bp ]; then
           sed -i '/name: "aera-fingerprint"/a \    enabled: false,' bootable/recovery/aeraui/Android.bp
         fi
@@ -82,7 +86,7 @@ jobs:
           sed -i '/external\/se_omapi/d' bootable/recovery/prebuilt/Android.bp
         fi
 
-        # 5. Отключаем тесты
+        # 5. Отключаем тестовые модули
         sed -i 's/"tests",//g' bootable/recovery/Android.bp 2>/dev/null || true
         sed -i 's/"updater_sample",//g' bootable/recovery/Android.bp 2>/dev/null || true
 
