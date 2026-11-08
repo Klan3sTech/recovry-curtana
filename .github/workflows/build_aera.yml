@@ -70,40 +70,34 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. ПОЛНОЕ ОТКЛЮЧЕНИЕ ТЕСТОВ SOONG И BLUEPRINT
-        # Вырезаем блоки testSrcs, чтобы Blueprint вообще не создавал цели 'test android/soong/...'
-        find build/soong build/blueprint -name "Android.bp" -o -name "Blueprints" | while read -r f; do
-          sed -i '/testSrcs: \[/,/\]/d' "$f" 2>/dev/null || true
-        done
-
-        # 2. Удаляем свойства Android 14+ из всех Android.bp рекавери
+        # 1. Удаляем свойства Android 14+ из всех Android.bp recovery
         find bootable/recovery -name "Android.bp" -exec sed -i '/default_team/d' {} +
         
-        # 3. Очищаем fonts/Android.bp от несовместимого prebuilt_res
+        # 2. Очищаем fonts/Android.bp от несовместимого prebuilt_res
         if [ -f bootable/recovery/fonts/Android.bp ]; then
           echo "// Cleared for A12.1 build" > bootable/recovery/fonts/Android.bp
         fi
 
-        # 4. Отключаем модуль aera-fingerprint
+        # 3. Отключаем модуль aera-fingerprint
         if [ -f bootable/recovery/aeraui/Android.bp ]; then
           sed -i '/name: "aera-fingerprint"/a \    enabled: false,' bootable/recovery/aeraui/Android.bp
         fi
 
-        # 5. Убираем модуль external/se_omapi
+        # 4. Убираем модуль external/se_omapi
         if [ -f bootable/recovery/prebuilt/Android.bp ]; then
           sed -i '/external\/se_omapi/d' bootable/recovery/prebuilt/Android.bp
         fi
 
-        # 6. Нейтрализуем Android.bp в external/nano, оставляя только Android.mk
+        # 5. Нейтрализуем Android.bp в external/nano, оставляя только Android.mk
         if [ -f external/nano/Android.bp ]; then
           rm -f external/nano/Android.bp
         fi
 
-        # 7. Отключаем тестовые директории в recovery
+        # 6. Отключаем тестовые директории в recovery
         sed -i 's/"tests",//g' bootable/recovery/Android.bp 2>/dev/null || true
         sed -i 's/"updater_sample",//g' bootable/recovery/Android.bp 2>/dev/null || true
 
-        # 8. Настраиваем дерево устройства miatoll
+        # 7. Настраиваем дерево устройства miatoll
         cd device/xiaomi/curtana
         echo "#!/bin/bash" > vendorsetup.sh
         chmod 755 vendorsetup.sh
@@ -143,6 +137,9 @@ jobs:
         cd ${{ github.workspace }}/work
         export ALLOW_MISSING_DEPENDENCIES=true
         export SOONG_ALLOW_MISSING_DEPENDENCIES=true
+        export SKIP_BOOTSTRAP_TESTS=1
+        export SKIP_BOOTSTRAP_TESTS=true
+        export SOONG_SKIP_TESTS=true
         source build/envsetup.sh
         lunch twrp_curtana-eng
         mka recoveryimage -j$(nproc --all)
