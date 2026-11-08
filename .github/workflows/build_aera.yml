@@ -64,19 +64,29 @@ jobs:
       run: |
         cd ${{ github.workspace }}/work
         
-        # 1. Точечно удаляем только несовместимые свойства Android 14/15, не трогая скобки и тела модулей
+        # 1. Удаляем свойство default_team (A14+) во всех Android.bp
         find bootable/recovery -name "Android.bp" -exec sed -i '/default_team/d' {} +
         
-        # 2. Убираем только обращение к несуществующему namespace external/se_omapi
+        # 2. Очищаем fonts/Android.bp, чтобы Soong не спотыкался о prebuilt_res
+        if [ -f bootable/recovery/fonts/Android.bp ]; then
+          echo "// Cleared for A12.1 build" > bootable/recovery/fonts/Android.bp
+        fi
+
+        # 3. Отключаем модуль aera-fingerprint без нарушения синтаксиса скобок
+        if [ -f bootable/recovery/aeraui/Android.bp ]; then
+          sed -i '/name: "aera-fingerprint"/a \    enabled: false,' bootable/recovery/aeraui/Android.bp
+        fi
+
+        # 4. Убираем модуль external/se_omapi
         if [ -f bootable/recovery/prebuilt/Android.bp ]; then
           sed -i '/external\/se_omapi/d' bootable/recovery/prebuilt/Android.bp
         fi
 
-        # 3. Отключаем тестовые директории
+        # 5. Отключаем тесты
         sed -i 's/"tests",//g' bootable/recovery/Android.bp 2>/dev/null || true
         sed -i 's/"updater_sample",//g' bootable/recovery/Android.bp 2>/dev/null || true
 
-        # 4. Настраиваем дерево устройства miatoll
+        # 6. Настраиваем дерево устройства miatoll
         cd device/xiaomi/curtana
         echo "#!/bin/bash" > vendorsetup.sh
         chmod 755 vendorsetup.sh
@@ -103,10 +113,9 @@ jobs:
             twrp_curtana-eng
         EOF
 
-        # Разрешаем сборку неподписанных модулей и обход VINTF-проверок
+        # Разрешаем сборку неподписанных модулей
         echo "BUILD_BROKEN_VINTF_CHECKS := true" >> BoardConfig.mk
         echo "BUILD_BROKEN_MISSING_BUILD_REQUIREMENTS := true" >> BoardConfig.mk
-        echo "BOARD_SUPPRESS_SECURE_ERASE := true" >> BoardConfig.mk
 
         # Нейтрализуем проверки OrangeFox
         sed -i 's/^OF_/# OF_/g' BoardConfig.mk 2>/dev/null || true
@@ -117,8 +126,6 @@ jobs:
         cd ${{ github.workspace }}/work
         export ALLOW_MISSING_DEPENDENCIES=true
         export SOONG_ALLOW_MISSING_DEPENDENCIES=true
-        export DISABLE_STUB_VALIDATION=true
-        export TARGET_BUILD_UNOFFICIAL=true
         source build/envsetup.sh
         lunch twrp_curtana-eng
         mka recoveryimage -j$(nproc --all)
@@ -129,4 +136,3 @@ jobs:
         name: AERA-Miatoll-Recovery
         path: ${{ github.workspace }}/work/out/target/product/curtana/recovery.img
         if-no-files-found: error
-        
